@@ -43,6 +43,7 @@ mod python_threading;
 pub mod sampler;
 mod stack_trace;
 pub mod timer;
+mod timestamped_traces;
 mod utils;
 mod version;
 
@@ -51,3 +52,4 @@ pub use config::Config;
 pub use stack_trace::StackTrace;
 pub use stack_trace::Frame;
 pub use remoteprocess::Pid;
+pub use timestamped_traces::record_samples;
