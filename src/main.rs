@@ -21,7 +21,7 @@ mod flamegraph;
 mod speedscope;
 mod sampler;
 mod timer;
-// mod timestamped_traces;
+mod timestamped_traces;
 mod utils;
 mod version;
 
