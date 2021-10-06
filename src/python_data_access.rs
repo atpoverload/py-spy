@@ -276,8 +276,8 @@ pub fn format_variable<I>(process: &remoteprocess::Process, version: &Version, a
 
             let field_name = copy_string(field as *const I::StringObject, process)?;
             fields.push(format!("{}: {}", field_name, format_variable::<I>(process, version, field_addr, max_length)?));
-            println!("{:?}", fields.get(fields.len() - 1));
         }
+        format!("{}: <{}>", value_type_name, fields.join(", "))
     };
 
     Ok(formatted)
