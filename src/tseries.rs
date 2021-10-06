@@ -31,30 +31,30 @@ impl TimeSeries {
             let locals = match &frame.locals {
                 Some(locals) => locals.iter()
                     .filter(|local| local.arg)
-                    // .map(|local| {
-                    //     // strip the escape characters for json
-                    //     match &local.repr {
-                    //         Some(repr) => {
-                    //             format!("{}: {}", &local.name, repr.replace("\"", ""))
-                    //         },
-                    //         None => local.name
-                    //     }
-                    // })
                     .map(|local| {
                         // strip the escape characters for json
                         match &local.repr {
                             Some(repr) => {
-                                format!(
-                                    "{}: {}",
-                                    &local.name,
-                                    repr.replace("\"", "")
-                                        .replace("\'", "")
-                                        .replace("\\n", "")
-                                        .replace("\\", ""))
+                                format!("{}: {}", &local.name, repr.replace("\"", ""))
                             },
-                            None => format!("{}", &local.name)
+                            None => local.name
                         }
                     })
+                    // .map(|local| {
+                    //     // strip the escape characters for json
+                    //     match &local.repr {
+                    //         Some(repr) => {
+                    //             format!(
+                    //                 "{}: {}",
+                    //                 &local.name,
+                    //                 repr.replace("\"", "")
+                    //                     .replace("\'", "")
+                    //                     .replace("\\n", "")
+                    //                     .replace("\\", ""))
+                    //         },
+                    //         None => format!("{}", &local.name)
+                    //     }
+                    // })
                     .collect::<Vec<String>>()
                     .join(", "),
                 _ => "".to_string()
