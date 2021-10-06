@@ -262,7 +262,22 @@ pub fn format_variable<I>(process: &remoteprocess::Process, version: &Version, a
     } else if value_type_name == "NoneType" {
         "None".to_owned()
     } else {
-        format!("<{} at 0x{:x}>", value_type_name, addr)
+        // this can end up in stack overflow if an object refers to itself
+        let obj: I::Object = process.copy_struct(addr)?;
+        let obj_type = process.copy_pointer(obj.ob_type())?;
+        let obj_dict_addr: usize = process.copy_struct(addr + obj_type.dictoffset() as usize)?;
+
+        let mut fields = Vec::new();
+        for i in DictIterator::from(process, obj_dict_addr)? {
+            let (field, field_addr) = i?;
+            if addr == field_addr {
+                continue;
+            }
+
+            let field_name = copy_string(field as *const I::StringObject, process)?;
+            fields.push(format!("{}: {}", field_name, format_variable::<I>(process, version, field_addr, max_length)?));
+            println!("{:?}", fields.get(fields.len() - 1));
+        }
     };
 
     Ok(formatted)
