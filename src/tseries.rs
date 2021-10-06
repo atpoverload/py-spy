@@ -37,7 +37,7 @@ impl TimeSeries {
                             Some(repr) => {
                                 format!("{}: {}", &local.name, repr.replace("\"", ""))
                             },
-                            None => local.name
+                            None => format!("{}", &local.name)
                         }
                     })
                     // .map(|local| {
