@@ -60,7 +60,8 @@ arg_enum!{
     pub enum FileFormat {
         flamegraph,
         raw,
-        speedscope
+        speedscope,
+        tseries
     }
 }
 

@@ -21,14 +21,17 @@ mod flamegraph;
 mod speedscope;
 mod sampler;
 mod timer;
-mod timestamped_traces;
+// mod timestamped_traces;
 mod utils;
 mod version;
+
+mod tseries;
+mod eflect_stack_trace;
 
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use console::style;
 use failure::Error;
@@ -118,11 +121,27 @@ impl Recorder for RawFlamegraph {
     }
 }
 
+impl Recorder for tseries::TimeSeries {
+    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
+        Ok(self.add(
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+            trace)?)
+    }
+
+    fn write(&self, w: &mut dyn Write) -> Result<(), Error> {
+        self.write(w)
+    }
+}
+
 fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error> {
     let mut output: Box<dyn Recorder> = match config.format {
         Some(FileFormat::flamegraph) => Box::new(flamegraph::Flamegraph::new(config.show_line_numbers)),
         Some(FileFormat::speedscope) =>  Box::new(speedscope::Stats::new(config)),
         Some(FileFormat::raw) => Box::new(RawFlamegraph(flamegraph::Flamegraph::new(config.show_line_numbers))),
+        Some(FileFormat::tseries) => Box::new(tseries::TimeSeries::new()),
         None => return Err(format_err!("A file format is required to record samples"))
     };
 
@@ -133,6 +152,7 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
                 Some(FileFormat::flamegraph) => "svg",
                 Some(FileFormat::speedscope) => "json",
                 Some(FileFormat::raw) => "txt",
+                Some(FileFormat::tseries) => "pb",
                 None => return Err(format_err!("A file format is required to record samples"))
             };
             let local_time = Local::now().to_rfc3339_opts(SecondsFormat::Secs, true);
@@ -305,7 +325,11 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
         FileFormat::raw => {
             println!("{}Wrote raw flamegraph data to '{}'. Samples: {} Errors: {}", lede, filename, samples, errors);
             println!("{}You can use the flamegraph.pl script from https://github.com/brendangregg/flamegraph to generate a SVG", lede);
-        }
+        },
+        FileFormat::tseries => {
+            println!("{}Wrote time series proto to '{}'. Samples: {} Errors: {}", lede, filename, samples, errors);
+            // println!("{}You can use the flamegraph.pl script from https://github.com/brendangregg/flamegraph to generate a SVG", lede);
+        },
     };
 
     Ok(())
@@ -313,9 +337,9 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
 
 fn run_spy_command(pid: remoteprocess::Pid, config: &config::Config) -> Result<(), Error> {
     match config.command.as_ref() {
-        "traces" => {
-            timestamped_traces::record_samples(pid, config)?;
-        },
+        // "traces" => {
+        //     timestamped_traces::record_samples(pid, config)?;
+        // },
         "dump" =>  {
             dump::print_traces(pid, config)?;
         },
