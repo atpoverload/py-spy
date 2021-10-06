@@ -9,7 +9,6 @@ use protobuf::ProtobufError;
 use crate::stack_trace::StackTrace;
 
 use crate::eflect_stack_trace;
-use crate::eflect_stack_trace::{StackTraceDataSet};
 
 // map is indexed by timestamp, thread id, frame id
 pub struct TimeSeries {
@@ -32,29 +31,11 @@ impl TimeSeries {
                 Some(locals) => locals.iter()
                     .filter(|local| local.arg)
                     .map(|local| {
-                        // strip the escape characters for json
                         match &local.repr {
-                            Some(repr) => {
-                                format!("{}: {}", &local.name, repr.replace("\"", ""))
-                            },
+                            Some(repr) => format!("{}: {}", &local.name, repr.replace("\"", "")),
                             None => format!("{}", &local.name)
                         }
                     })
-                    // .map(|local| {
-                    //     // strip the escape characters for json
-                    //     match &local.repr {
-                    //         Some(repr) => {
-                    //             format!(
-                    //                 "{}: {}",
-                    //                 &local.name,
-                    //                 repr.replace("\"", "")
-                    //                     .replace("\'", "")
-                    //                     .replace("\\n", "")
-                    //                     .replace("\\", ""))
-                    //         },
-                    //         None => format!("{}", &local.name)
-                    //     }
-                    // })
                     .collect::<Vec<String>>()
                     .join(", "),
                 _ => "".to_string()

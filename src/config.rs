@@ -206,6 +206,11 @@ impl Config {
                 .long("capture")
                 .hidden(true)
                 .help("Captures output from child process"))
+            .arg(Arg::with_name("locals")
+                .short("l")
+                .long("locals")
+                .multiple(true)
+                .help("Show local variables for each frame. Passing multiple times (-ll) increases verbosity"))
             .arg(Arg::with_name("hideprogress")
                 .long("hideprogress")
                 .hidden(true)
@@ -235,43 +240,6 @@ impl Config {
                 .long("json")
                 .help("Format output as JSON"));
 
-        let timestamped = clap::SubCommand::with_name("timestamped")
-            .about("Records stack trace information to timestamped trace maps")
-            .arg(program.clone())
-            .arg(pid.clone())
-            .arg(full_filenames.clone())
-            .arg(Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .value_name("filename")
-                .help("Output filename")
-                .takes_value(true)
-                .required(false))
-            .arg(rate.clone())
-            .arg(subprocesses.clone())
-            .arg(Arg::with_name("function")
-                .short("F")
-                .long("function")
-                .help("Aggregate samples by function's first line number, instead of current line number"))
-            .arg(Arg::with_name("nolineno")
-                .long("nolineno")
-                .help("Do not show line numbers"))
-            .arg(Arg::with_name("threads")
-                .short("t")
-                .long("threads")
-                .help("Show thread ids in the output"))
-            .arg(gil.clone())
-            .arg(idle.clone())
-            .arg(Arg::with_name("capture")
-                .long("capture")
-                .hidden(true)
-                .help("Captures output from child process"))
-            .arg(Arg::with_name("locals")
-                .short("l")
-                .long("locals")
-                .multiple(true)
-                .help("Show local variables for each frame. Passing multiple times (-ll) increases verbosity"));
-
         let completions = clap::SubCommand::with_name("completions")
             .about("Generate shell completions")
             .setting(AppSettings::Hidden)
@@ -286,8 +254,6 @@ impl Config {
         let top = top.arg(native.clone());
         #[cfg(unwind)]
         let dump = dump.arg(native.clone());
-        #[cfg(unwind)]
-        let timestamped = timestamped.arg(native.clone());
 
         // Nonblocking isn't an option for freebsd, remove
         #[cfg(not(target_os="freebsd"))]
@@ -296,8 +262,6 @@ impl Config {
         let top = top.arg(nonblocking.clone());
         #[cfg(not(target_os="freebsd"))]
         let dump = dump.arg(nonblocking.clone());
-        #[cfg(not(target_os="freebsd"))]
-        let timestamped = timestamped.arg(nonblocking.clone());
 
         let mut app = App::new(crate_name!())
             .version(crate_version!())
@@ -309,7 +273,6 @@ impl Config {
             .subcommand(record)
             .subcommand(top)
             .subcommand(dump)
-            .subcommand(timestamped)
             .subcommand(completions);
         let matches = app.clone().get_matches_from_safe(args)?;
         info!("Command line args: {:?}", matches);
@@ -331,10 +294,6 @@ impl Config {
             },
             "top" => {
                 config.sampling_rate = value_t!(matches, "rate", u64)?;
-            },
-            "timestamped" => {
-                config.sampling_rate = value_t!(matches, "rate", u64)?;
-                config.filename = matches.value_of("output").map(|f| f.to_owned());
             },
             "completions" => {
                 let shell = value_t!(matches.value_of("shell"), clap::Shell).unwrap_or_else(|e| e.exit());

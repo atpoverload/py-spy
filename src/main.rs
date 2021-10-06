@@ -21,7 +21,6 @@ mod flamegraph;
 mod speedscope;
 mod sampler;
 mod timer;
-// mod timestamped_traces;
 mod utils;
 mod version;
 
@@ -337,9 +336,6 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
 
 fn run_spy_command(pid: remoteprocess::Pid, config: &config::Config) -> Result<(), Error> {
     match config.command.as_ref() {
-        // "traces" => {
-        //     timestamped_traces::record_samples(pid, config)?;
-        // },
         "dump" =>  {
             dump::print_traces(pid, config)?;
         },
