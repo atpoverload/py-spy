@@ -25,7 +25,6 @@ mod utils;
 mod version;
 
 mod tseries;
-mod eflect_stack_trace;
 
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};

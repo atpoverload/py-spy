@@ -282,7 +282,10 @@ impl PythonSpy {
                     let max_length = (128 * self.config.dump_locals) as isize;
                     for local in locals {
                         let repr = format_variable::<I>(&self.process, &self.version, local.addr, max_length);
-                        local.repr = Some(repr.unwrap_or("?".to_owned()));
+                        local.repr = match repr {
+                            Ok(variable) => Some(variable),
+                            _ => None
+                        };
                     }
                 }
             }

@@ -2,9 +2,28 @@ use std;
 
 use failure::Error;
 
+use serde_derive::Serialize;
+
 use remoteprocess::ProcessMemory;
 use crate::python_interpreters::{StringObject, BytesObject, InterpreterState, Object, TypeObject, TupleObject, ListObject};
 use crate::version::Version;
+
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Serialize)]
+pub enum PythonVariable {
+    BOOL(bool),
+    INT(i32),
+    LONG(i64),
+    STR(String),
+    DICT(Vec<(PythonVariable, PythonVariable)>),
+    LIST(Vec<PythonVariable>),
+    TUPLE(Vec<PythonVariable>),
+    FLOAT(String), // floating point numbers can't derive eq
+    NONE,
+    OBJECT(Vec<(String, PythonVariable)>),
+    OVERFLOW,
+    UNDERFLOW,
+    UNKNOWN
+}
 
 /// Copies a string from a target process. Attempts to handle unicode differences, which mostly seems to be working
 pub fn copy_string<T: StringObject, P: ProcessMemory>(ptr: * const T, process: &P) -> Result<String, Error> {
@@ -159,13 +178,13 @@ const PY_TPFLAGS_BYTES_SUBCLASS: usize =   1 << 27;
 const PY_TPFLAGS_STRING_SUBCLASS: usize = 1 << 28;
 const PY_TPFLAGS_DICT_SUBCLASS: usize =    1 << 29;
 
-/// Converts a python variable in the other process to a human readable string
+/// Converts a python variable in the other process to a python variable enum
 pub fn format_variable<I>(process: &remoteprocess::Process, version: &Version, addr: usize, max_length: isize)
-        -> Result<String, Error> where I: InterpreterState {
+        -> Result<PythonVariable, Error> where I: InterpreterState {
     // We need at least 5 characters remaining for all this code to work, replace with an ellipsis if
     // we're out of space
-    if max_length <= 5 {
-        return Ok("...".to_owned());
+    if max_length == 0 {
+        return Ok(PythonVariable::UNKNOWN);
     }
 
     let value: I::Object = process.copy_struct(addr)?;
@@ -177,110 +196,115 @@ pub fn format_variable<I>(process: &remoteprocess::Process, version: &Version, a
     let length = value_type_name.iter().position(|&x| x == 0).unwrap_or(max_type_len);
     let value_type_name = std::str::from_utf8(&value_type_name[..length])?;
 
-    let format_int = |value: i64| {
+    let format_int = |value: i64, name: &str| {
         if value_type_name == "bool" {
-            (if value > 0 { "True" } else { "False" }).to_owned()
+            PythonVariable::BOOL(value > 0)
         } else {
-            format!("{}", value)
+            match name {
+                "int" => PythonVariable::INT(value as i32),
+                "long" => PythonVariable::LONG(value),
+                _ => PythonVariable::UNKNOWN,
+            }
         }
     };
 
     // use the flags/typename to figure out how to stringify this object
     let flags = value_type.flags();
-    let formatted = if flags & PY_TPFLAGS_INT_SUBCLASS != 0 {
-        format_int(copy_int(process, addr)?)
+    if flags & PY_TPFLAGS_INT_SUBCLASS != 0 {
+        Ok(format_int(copy_int(process, addr)?, "int"))
     } else if flags & PY_TPFLAGS_LONG_SUBCLASS != 0 {
         // we don't handle arbitray sized integer values (max is 2**60)
         let (value, overflowed) = copy_long(process, addr)?;
-         if overflowed {
-            if value > 0 { "+bigint".to_owned() } else { "-bigint".to_owned() }
+        if overflowed {
+            Ok(if value > 0 { PythonVariable::OVERFLOW } else { PythonVariable::UNDERFLOW })
         } else {
-            format_int(value)
+            Ok(format_int(value, "long"))
         }
     } else if flags & PY_TPFLAGS_STRING_SUBCLASS != 0 ||
             (version.major ==  2 && (flags & PY_TPFLAGS_BYTES_SUBCLASS != 0)) {
         let value = copy_string(addr as *const I::StringObject, process)?.replace("\"", "\\\"").replace("\n", "\\n");
-        if value.len() as isize >= max_length - 5 {
-            format!("\"{}...\"", &value[..(max_length - 5) as usize])
-        } else {
-            format!("\"{}\"", value)
-        }
+        Ok(PythonVariable::STR(format!("{}", value)))
     } else if flags & PY_TPFLAGS_DICT_SUBCLASS != 0 {
         if version.major == 3 && version.minor >= 6 {
             let mut values = Vec::new();
-            let mut remaining = max_length - 2;
+            let mut remaining = max_length - 1;
             for entry in DictIterator::from(process, addr)? {
                 let (key, value) = entry?;
                 let key = format_variable::<I>(process, version, key, remaining)?;
                 let value = format_variable::<I>(process, version, value, remaining)?;
-                remaining -= (key.len() + value.len()) as isize + 4;
-                if remaining <= 5 {
-                    values.push("...".to_owned());
+                remaining -= 1;
+                if remaining == 0 {
+                    values.push((PythonVariable::UNKNOWN, PythonVariable::UNKNOWN));
                     break;
                 }
-                values.push(format!("{}: {}", key, value));
+                values.push((key, value));
             }
-            format!("{{{}}}", values.join(", "))
+            Ok(PythonVariable::DICT(values))
         } else {
             // TODO: support getting dictionaries from older versions of python
-            "dict".to_owned()
+            Ok(PythonVariable::DICT(Vec::new()))
         }
     } else if flags & PY_TPFLAGS_LIST_SUBCLASS != 0 {
         let object: I::ListObject = process.copy_struct(addr)?;
         let addr = object.item() as usize;
         let mut values = Vec::new();
-        let mut remaining = max_length - 2;
+        let mut remaining = max_length - 1;
         for i in 0..object.size() {
             let valueptr: *mut I::Object = process.copy_struct(addr + i * std::mem::size_of::<* mut I::Object>())?;
             let value = format_variable::<I>(process, version, valueptr as usize, remaining)?;
-            remaining -= value.len() as isize + 2;
-            if remaining <= 5 {
-                values.push("...".to_owned());
+            remaining -= 1;
+            if remaining == 0 {
+                values.push(PythonVariable::UNKNOWN);
                 break;
             }
             values.push(value);
         }
-        format!("[{}]", values.join(", "))
+        Ok(PythonVariable::LIST(values))
     } else if flags & PY_TPFLAGS_TUPLE_SUBCLASS != 0 {
         let object: I::TupleObject = process.copy_struct(addr)?;
         let mut values = Vec::new();
-        let mut remaining = max_length - 2;
+        let mut remaining = max_length - 1;
         for i in 0..object.size() {
             let value_addr: *mut I::Object = process.copy_struct(object.address(addr, i))?;
             let value = format_variable::<I>(process, version, value_addr as usize, remaining)?;
-            remaining -= value.len() as isize + 2;
-            if remaining <= 5 {
-                values.push("...".to_owned());
+            remaining -= 1;
+            if remaining == 0 {
+                values.push(PythonVariable::UNKNOWN);
                 break;
             }
             values.push(value);
         }
-        format!("({})", values.join(", "))
+        Ok(PythonVariable::TUPLE(values))
     } else if value_type_name == "float" {
         let value = process.copy_pointer(addr as *const crate::python_bindings::v3_7_0::PyFloatObject)?;
-        format!("{}", value.ob_fval)
+        Ok(PythonVariable::FLOAT(format!("{}", value.ob_fval)))
     } else if value_type_name == "NoneType" {
-        "None".to_owned()
+        Ok(PythonVariable::NONE)
     } else {
         // this can end up in stack overflow if an object refers to itself
         let obj: I::Object = process.copy_struct(addr)?;
         let obj_type = process.copy_pointer(obj.ob_type())?;
         let obj_dict_addr: usize = process.copy_struct(addr + obj_type.dictoffset() as usize)?;
 
-        let mut fields = Vec::new();
+        let mut values = Vec::new();
+        let mut remaining = max_length - 1;
         for i in DictIterator::from(process, obj_dict_addr)? {
             let (field, field_addr) = i?;
             if addr == field_addr {
                 continue;
             }
 
-            let field_name = copy_string(field as *const I::StringObject, process)?;
-            fields.push(format!("{}: {}", field_name, format_variable::<I>(process, version, field_addr, max_length)?));
+            let name = copy_string(field as *const I::StringObject, process)?;
+            let value = format_variable::<I>(process, version, field_addr, remaining)?;
+            remaining -= 1;
+            if remaining == 0 {
+                values.push(("".to_string(), PythonVariable::UNKNOWN));
+                break;
+            }
+            values.push((name, value));
         }
-        format!("{}: <{}>", value_type_name, fields.join(", "))
-    };
-
-    Ok(formatted)
+        Ok(PythonVariable::OBJECT(values))
+    }
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ use remoteprocess::{ProcessMemory, Pid, Process};
 use serde_derive::Serialize;
 
 use crate::python_interpreters::{InterpreterState, ThreadState, FrameObject, CodeObject, TupleObject};
-use crate::python_data_access::{copy_string, copy_bytes};
+use crate::python_data_access::{copy_string, copy_bytes, PythonVariable};
 use crate::config::LineNo;
 
 /// Call stack for a single python thread
@@ -53,7 +53,7 @@ pub struct LocalVariable {
     pub name: String,
     pub addr: usize,
     pub arg: bool,
-    pub repr: Option<String>,
+    pub repr: Option<PythonVariable>,
 }
 
 #[derive(Debug, Clone, Serialize)]
