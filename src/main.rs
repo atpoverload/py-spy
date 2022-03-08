@@ -150,7 +150,7 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
                 Some(FileFormat::flamegraph) => "svg",
                 Some(FileFormat::speedscope) => "json",
                 Some(FileFormat::raw) => "txt",
-                Some(FileFormat::tseries) => "pb",
+                Some(FileFormat::tseries) => "json",
                 None => return Err(format_err!("A file format is required to record samples"))
             };
             let local_time = Local::now().to_rfc3339_opts(SecondsFormat::Secs, true);
