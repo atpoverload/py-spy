@@ -22,6 +22,7 @@ use crate::config::{Config, LockingStrategy, LineNo};
 #[cfg(unwind)]
 use crate::native_stack_trace::NativeStack;
 use crate::python_bindings::{pyruntime, v2_7_15, v3_3_7, v3_5_5, v3_6_6, v3_7_0, v3_8_0, v3_9_5, v3_10_0};
+use crate::python_data_access::PythonVariable;
 use crate::python_interpreters::{self, InterpreterState, ThreadState};
 use crate::python_threading::thread_name_lookup;
 use crate::stack_trace::{StackTrace, get_stack_traces, get_stack_trace};
@@ -276,16 +277,20 @@ impl PythonSpy {
             }
 
             for frame in &mut trace.frames {
-                frame.short_filename = self.shorten_filename(&frame.filename);
-                if let Some(locals) = frame.locals.as_mut() {
-                    use crate::python_data_access::format_variable;
-                    let max_length = (128 * self.config.dump_locals) as isize;
-                    for local in locals {
-                        let repr = format_variable::<I>(&self.process, &self.version, local.addr, max_length);
-                        local.repr = match repr {
-                            Ok(variable) => Some(variable),
-                            _ => None
-                        };
+                let short_filename = self.shorten_filename(&frame.filename);
+                frame.short_filename = short_filename.clone();
+                // TODO(timur): we may need more classes that are "forbidden" from searching locals
+                if !short_filename.unwrap().contains("frozen importlib._bootstrap") {
+                    if let Some(locals) = frame.locals.as_mut() {
+                        use crate::python_data_access::format_variable;
+                        let max_depth = 100 * self.config.dump_locals as isize;
+                        for local in locals {
+                            let repr = format_variable::<I>(&self.process, &self.version, local.addr, max_depth);
+                            local.repr = match repr {
+                                Ok(variable) => Some(variable),
+                                Err(e) => Some(PythonVariable::UNKNOWN(e.to_string())),
+                            };
+                        }
                     }
                 }
             }
