@@ -54,9 +54,7 @@ pub fn print_traces(pid: Pid, config: &Config) -> Result<(), Error> {
                         println!("        {}", style("Locals:").dim());
                         shown_locals = true;
                     }
-
-                    let repr = local.repr.as_ref().map(String::as_str).unwrap_or("?");
-                    println!("            {}: {}", local.name, repr);
+                    println!("            {}: {:?}", local.name, local.repr);
                 }
             }
         }
