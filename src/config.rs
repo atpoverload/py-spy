@@ -59,7 +59,8 @@ pub struct Config {
 pub enum FileFormat {
     flamegraph,
     raw,
-    speedscope
+    speedscope,
+    timestamped,
 }
 
 impl FileFormat {
@@ -229,7 +230,11 @@ impl Config {
             .arg(Arg::new("hideprogress")
                 .long("hideprogress")
                 .hide(true)
-                .help("Hides progress bar (useful for showing error output on record)"));
+                .help("Hides progress bar (useful for showing error output on record)"))
+            .arg(Arg::new("locals")
+                .short('l')
+                .long("locals")
+                .help("Record local variables for each frame. Only works with a timestamped trace."));
 
         let top = App::new("top")
             .about("Displays a top like view of functions consuming CPU")
@@ -312,6 +317,10 @@ impl Config {
                     std::process::exit(1);
                 }
                 config.hide_progress = matches.occurrences_of("hideprogress") > 0;
+                config.dump_locals = match config.format {
+                    Some(FileFormat::timestamped) => matches.occurrences_of("locals"),
+                    _ => 0,
+                };
             },
             "top" => {
                 config.sampling_rate = matches.value_of_t("rate")?;
