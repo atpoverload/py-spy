@@ -1,6 +1,6 @@
 extern crate py_spy;
 use std::collections::HashSet;
-use py_spy::{Config, PythonSpy, Pid};
+use py_spy::{Config, PythonSpy, Pid, PythonVariable};
 
 struct ScriptRunner {
     #[allow(dead_code)]
@@ -234,38 +234,45 @@ fn test_local_vars() {
     let arg1 = &locals[0];
     assert_eq!(arg1.name, "arg1");
     assert!(arg1.arg);
-    assert_eq!(arg1.repr, Some("\"foo\"".to_owned()));
+    assert_eq!(arg1.repr, Some(PythonVariable::STR("\"foo\"".to_owned())));
 
     let arg2 = &locals[1];
     assert_eq!(arg2.name, "arg2");
     assert!(arg2.arg);
-    assert_eq!(arg2.repr, Some("None".to_owned()));
+    assert_eq!(arg2.repr, Some(PythonVariable::NONE));
 
     let arg3 = &locals[2];
     assert_eq!(arg3.name, "arg3");
     assert!(arg3.arg);
-    assert_eq!(arg3.repr, Some("True".to_owned()));
+    assert_eq!(arg3.repr, Some(PythonVariable::BOOL(true)));
 
     let local1 = &locals[3];
     assert_eq!(local1.name, "local1");
     assert!(!local1.arg);
-    assert_eq!(local1.repr, Some("[-1234, 5678]".to_owned()));
+    assert_eq!(local1.repr, Some(PythonVariable::LIST(vec![
+        PythonVariable::INT(-1234),
+        PythonVariable::INT(5678)
+    ])));
 
     let local2 = &locals[4];
     assert_eq!(local2.name, "local2");
     assert!(!local2.arg);
-    assert_eq!(local2.repr, Some("(\"a\", \"b\", \"c\")".to_owned()));
+    assert_eq!(local2.repr, Some(PythonVariable::TUPLE(vec![
+        PythonVariable::STR("a".to_string()),
+        PythonVariable::STR("b".to_string()),
+        PythonVariable::STR("c".to_string()),
+    ])));
 
     let local3 = &locals[5];
     assert_eq!(local3.name, "local3");
     assert!(!local3.arg);
 
-    assert_eq!(local3.repr, Some("123456789123456789".to_owned()));
+    assert_eq!(local3.repr, Some(PythonVariable::LONG(123456789123456789)));
 
     let local4 = &locals[6];
     assert_eq!(local4.name, "local4");
     assert!(!local4.arg);
-    assert_eq!(local4.repr, Some("3.1415".to_owned()));
+    assert_eq!(local4.repr, Some(PythonVariable::FLOAT("3.1415".to_owned())));
 
     let local5 = &locals[7];
     assert_eq!(local5.name, "local5");
@@ -277,7 +284,14 @@ fn test_local_vars() {
 
     // we only support dictionary lookup on python 3.6+ right now
     if runner.spy.version.major == 3 && runner.spy.version.minor >= 6 {
-        assert_eq!(local5.repr, Some("{\"a\": False, \"b\": (1, 2, 3)}".to_owned()));
+        assert_eq!(local5.repr, Some(PythonVariable::DICT(vec![
+            (PythonVariable::STR("a".to_string()), PythonVariable::BOOL(false)),
+            (PythonVariable::STR("b".to_string()), PythonVariable::TUPLE(vec![
+                PythonVariable::INT(1),
+                PythonVariable::INT(2),
+                PythonVariable::INT(3),
+            ])),
+        ])));
     }
 }
 

@@ -48,6 +48,7 @@ mod version;
 
 pub use python_spy::PythonSpy;
 pub use config::Config;
+pub use python_data_access::PythonVariable;
 pub use stack_trace::StackTrace;
 pub use stack_trace::Frame;
 pub use remoteprocess::Pid;
