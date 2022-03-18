@@ -234,7 +234,7 @@ fn test_local_vars() {
     let arg1 = &locals[0];
     assert_eq!(arg1.name, "arg1");
     assert!(arg1.arg);
-    assert_eq!(arg1.repr, Some(PythonVariable::STR("\"foo\"".to_owned())));
+    assert_eq!(arg1.repr, Some(PythonVariable::STR("foo".to_owned())));
 
     let arg2 = &locals[1];
     assert_eq!(arg2.name, "arg2");
@@ -250,8 +250,8 @@ fn test_local_vars() {
     assert_eq!(local1.name, "local1");
     assert!(!local1.arg);
     assert_eq!(local1.repr, Some(PythonVariable::LIST(vec![
-        PythonVariable::INT(-1234),
-        PythonVariable::INT(5678)
+        PythonVariable::LONG(-1234),
+        PythonVariable::LONG(5678)
     ])));
 
     let local2 = &locals[4];
@@ -287,9 +287,9 @@ fn test_local_vars() {
         assert_eq!(local5.repr, Some(PythonVariable::DICT(vec![
             (PythonVariable::STR("a".to_string()), PythonVariable::BOOL(false)),
             (PythonVariable::STR("b".to_string()), PythonVariable::TUPLE(vec![
-                PythonVariable::INT(1),
-                PythonVariable::INT(2),
-                PythonVariable::INT(3),
+                PythonVariable::LONG(1),
+                PythonVariable::LONG(2),
+                PythonVariable::LONG(3),
             ])),
         ])));
     }
