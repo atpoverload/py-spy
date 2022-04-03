@@ -61,6 +61,7 @@ pub enum FileFormat {
     raw,
     speedscope,
     timestamped,
+    trace_events,
 }
 
 impl FileFormat {
@@ -234,7 +235,7 @@ impl Config {
             .arg(Arg::new("locals")
                 .short('l')
                 .long("locals")
-                .help("Record local variables for each frame. Only works with a timestamped trace."));
+                .help("Record local variables for each frame. Only works with timestamped."));
 
         let top = App::new("top")
             .about("Displays a top like view of functions consuming CPU")

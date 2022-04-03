@@ -21,6 +21,7 @@ mod flamegraph;
 mod speedscope;
 mod sampler;
 mod timer;
+mod trace_events;
 mod utils;
 mod version;
 
@@ -35,6 +36,7 @@ use failure::Error;
 use serde_json;
 
 use stack_trace::{StackTrace, Frame};
+use trace_events::TraceEvents;
 use console_viewer::ConsoleViewer;
 use config::{Config, FileFormat, RecordDuration};
 
@@ -142,12 +144,27 @@ impl Recorder for Timestamped {
     }
 }
 
+impl Recorder for TraceEvents {
+    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
+        self.0
+            .entry(SystemTime::now())
+            .or_insert_with(Vec::new)
+            .push(trace.clone());
+        Ok(())
+    }
+
+    fn write(&self, w: &mut dyn Write) -> Result<(), Error> {
+        self.write_trace_events(w)
+    }
+}
+
 fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error> {
     let mut output: Box<dyn Recorder> = match config.format {
         Some(FileFormat::flamegraph) => Box::new(flamegraph::Flamegraph::new(config.show_line_numbers)),
         Some(FileFormat::speedscope) =>  Box::new(speedscope::Stats::new(config)),
         Some(FileFormat::raw) => Box::new(RawFlamegraph(flamegraph::Flamegraph::new(config.show_line_numbers))),
         Some(FileFormat::timestamped) => Box::new(Timestamped(HashMap::new())),
+        Some(FileFormat::trace_events) => Box::new(TraceEvents(HashMap::new())),
         None => return Err(format_err!("A file format is required to record samples"))
     };
 
@@ -159,6 +176,7 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
                 Some(FileFormat::speedscope) => "json",
                 Some(FileFormat::raw) => "txt",
                 Some(FileFormat::timestamped) => "json",
+                Some(FileFormat::trace_events) => "json",
                 None => return Err(format_err!("A file format is required to record samples"))
             };
             let local_time = Local::now().to_rfc3339_opts(SecondsFormat::Secs, true);
@@ -331,7 +349,11 @@ fn record_samples(pid: remoteprocess::Pid, config: &Config) -> Result<(), Error>
         FileFormat::timestamped => {
             println!("{}Wrote timestamped traces to '{}'. Samples: {} Errors: {}", lede, filename, samples, errors);
             println!("{}Any json viewer should be usable, though the output may be large if locals were included", lede);
-        }
+        },
+        FileFormat::trace_events => {
+            println!("{}Wrote trace events to '{}'. Samples: {} Errors: {}", lede, filename, samples, errors);
+            println!("{}Visit chrome://tracing to view", lede);
+        },
         FileFormat::raw => {
             println!("{}Wrote raw flamegraph data to '{}'. Samples: {} Errors: {}", lede, filename, samples, errors);
             println!("{}You can use the flamegraph.pl script from https://github.com/brendangregg/flamegraph to generate a SVG", lede);
